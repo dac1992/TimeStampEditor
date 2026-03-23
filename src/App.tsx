@@ -460,7 +460,7 @@ export default function App() {
                 onKeyDown={handleKeyDown}
                 spellCheck={false}
                 placeholder={isEnabled ? t.placeholderEnabled : t.placeholderDisabled}
-                className="w-full flex-1 bg-transparent border-none focus:ring-0 text-zinc-800 placeholder:text-zinc-300 font-mono text-base leading-relaxed resize-none selection:bg-indigo-100"
+                className="w-full flex-1 bg-transparent border-none focus:ring-0 outline-none p-4 text-zinc-800 placeholder:text-zinc-300 font-mono text-base leading-relaxed resize-none selection:bg-indigo-100"
               />
               
               {/* Compact Format Selection at bottom of editor */}
