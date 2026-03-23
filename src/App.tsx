@@ -36,6 +36,73 @@ interface Stats {
   timestamps: number;
 }
 
+// --- Translations ---
+
+const translations = {
+  zh: {
+    settings: "设置",
+    copy: "复制",
+    download: "下载",
+    clear: "清空",
+    autoTimestamp: "自动时间戳",
+    placeholderEnabled: "在这里输入内容，按回车自动插入时间戳...",
+    placeholderDisabled: "自动时间戳已关闭，按回车正常换行...",
+    pressEnter: "按回车记录",
+    system: "系统",
+    active: "运行中",
+    standby: "待机",
+    format: "格式",
+    build: "版本",
+    timestampFormat: "时间戳格式",
+    fullLocale: "完整区域设置",
+    timeOnly: "仅时间",
+    dateOnly: "仅日期",
+    iso8601: "ISO 8601",
+    statistics: "统计信息",
+    chars: "字符",
+    words: "字数",
+    lines: "行数",
+    timestamps: "时间戳",
+    quickTips: "小技巧",
+    tip1: "自动保存到本地浏览器缓存",
+    tip2: "Shift + Enter 正常换行",
+    tip3: "支持导出为 .txt 文件",
+    clearConfirm: "确定要清空所有内容吗？此操作不可撤销。",
+    langName: "English"
+  },
+  en: {
+    settings: "Settings",
+    copy: "Copy",
+    download: "Download",
+    clear: "Clear",
+    autoTimestamp: "Auto-Timestamp",
+    placeholderEnabled: "Type here, press Enter to insert timestamp...",
+    placeholderDisabled: "Auto-timestamp off, press Enter for new line...",
+    pressEnter: "Press Enter to Log",
+    system: "System",
+    active: "Active",
+    standby: "Standby",
+    format: "Format",
+    build: "Build",
+    timestampFormat: "Timestamp Format",
+    fullLocale: "Full Locale",
+    timeOnly: "Time Only",
+    dateOnly: "Date Only",
+    iso8601: "ISO 8601",
+    statistics: "Statistics",
+    chars: "Chars",
+    words: "Words",
+    lines: "Lines",
+    timestamps: "Timestamps",
+    quickTips: "Quick Tips",
+    tip1: "Auto-saved to local storage",
+    tip2: "Shift + Enter for new line",
+    tip3: "Export as .txt file",
+    clearConfirm: "Are you sure you want to clear all content? This cannot be undone.",
+    langName: "中文"
+  }
+};
+
 // --- App Component ---
 
 export default function App() {
@@ -51,6 +118,10 @@ export default function App() {
   const [format, setFormat] = useState<TimestampFormat>(() => {
     const saved = localStorage.getItem('timestamp_editor_format');
     return (saved as TimestampFormat) || 'full';
+  });
+  const [lang, setLang] = useState<'zh' | 'en'>(() => {
+    const saved = localStorage.getItem('timestamp_editor_lang');
+    return (saved as 'zh' | 'en') || 'zh';
   });
   const [showSettings, setShowSettings] = useState(true);
   const [copied, setCopied] = useState(false);
@@ -73,6 +144,10 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('timestamp_editor_format', format);
   }, [format]);
+
+  useEffect(() => {
+    localStorage.setItem('timestamp_editor_lang', lang);
+  }, [lang]);
 
   // Calculate stats
   useEffect(() => {
@@ -144,10 +219,12 @@ export default function App() {
   };
 
   const handleClear = () => {
-    if (window.confirm("确定要清空所有内容吗？此操作不可撤销。")) {
+    if (window.confirm(translations[lang].clearConfirm)) {
       setText("");
     }
   };
+
+  const t = translations[lang];
 
   // --- UI Components ---
 
@@ -165,22 +242,22 @@ export default function App() {
             icon={<Settings className="w-5 h-5" />} 
             active={showSettings} 
             onClick={() => setShowSettings(!showSettings)} 
-            label="设置"
+            label={t.settings}
           />
           <NavButton 
             icon={copied ? <Check className="w-5 h-5 text-indigo-600" /> : <Copy className="w-5 h-5" />} 
             onClick={handleCopy} 
-            label="复制"
+            label={t.copy}
           />
           <NavButton 
             icon={<Download className="w-5 h-5" />} 
             onClick={handleDownload} 
-            label="下载"
+            label={t.download}
           />
           <NavButton 
             icon={<Trash2 className="w-5 h-5" />} 
             onClick={handleClear} 
-            label="清空"
+            label={t.clear}
           />
         </div>
 
@@ -211,8 +288,14 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-6">
+            <button 
+              onClick={() => setLang(lang === 'zh' ? 'en' : 'zh')}
+              className="px-3 py-1 rounded-lg bg-zinc-100 hover:bg-zinc-200 text-[10px] font-bold uppercase tracking-widest text-zinc-600 transition-colors"
+            >
+              {t.langName}
+            </button>
             <div className="flex items-center gap-3">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">Auto-Timestamp</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">{t.autoTimestamp}</span>
               <button 
                 onClick={() => setIsEnabled(!isEnabled)}
                 className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors ${isEnabled ? 'bg-indigo-600' : 'bg-zinc-200'}`}
@@ -234,7 +317,7 @@ export default function App() {
               onChange={(e) => setText(e.target.value)}
               onKeyDown={handleKeyDown}
               spellCheck={false}
-              placeholder={isEnabled ? "在这里输入内容，按回车自动插入时间戳..." : "自动时间戳已关闭，按回车正常换行..."}
+              placeholder={isEnabled ? t.placeholderEnabled : t.placeholderDisabled}
               className="w-full h-full bg-transparent border-none focus:ring-0 text-zinc-800 placeholder:text-zinc-300 font-mono text-base leading-relaxed resize-none selection:bg-indigo-100"
             />
           </div>
@@ -243,7 +326,7 @@ export default function App() {
           <div className="absolute bottom-12 right-12 flex flex-col items-end gap-3 pointer-events-none opacity-60 hover:opacity-100 transition-opacity">
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white border border-zinc-200 shadow-sm text-[10px] font-bold uppercase tracking-widest text-zinc-400">
               <Keyboard className="w-3 h-3 text-indigo-500" />
-              <span>Press Enter to Log</span>
+              <span>{t.pressEnter}</span>
             </div>
           </div>
         </div>
@@ -253,12 +336,12 @@ export default function App() {
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-2">
               <div className={`w-1.5 h-1.5 rounded-full ${isEnabled ? 'bg-indigo-500 animate-pulse' : 'bg-zinc-300'}`} />
-              <span>System: {isEnabled ? 'Active' : 'Standby'}</span>
+              <span>{t.system}: {isEnabled ? t.active : t.standby}</span>
             </div>
-            <span>Format: {format}</span>
+            <span>{t.format}: {format}</span>
           </div>
           <div className="flex items-center gap-4">
-            <span>Build: 2026.03.23</span>
+            <span>{t.build}: 2026.03.23</span>
             <Monitor className="w-3 h-3" />
           </div>
         </footer>
@@ -280,31 +363,31 @@ export default function App() {
               <section className="space-y-4">
                 <div className="flex items-center gap-2 text-zinc-900">
                   <Zap className="w-4 h-4 text-indigo-600" />
-                  <h2 className="text-xs font-bold uppercase tracking-widest">Timestamp Format</h2>
+                  <h2 className="text-xs font-bold uppercase tracking-widest">{t.timestampFormat}</h2>
                 </div>
                 <div className="grid grid-cols-1 gap-2">
                   <FormatOption 
                     active={format === 'full'} 
                     onClick={() => setFormat('full')} 
-                    label="Full Locale" 
+                    label={t.fullLocale} 
                     desc={new Date().toLocaleString()} 
                   />
                   <FormatOption 
                     active={format === 'time'} 
                     onClick={() => setFormat('time')} 
-                    label="Time Only" 
+                    label={t.timeOnly} 
                     desc={new Date().toLocaleTimeString()} 
                   />
                   <FormatOption 
                     active={format === 'date'} 
                     onClick={() => setFormat('date')} 
-                    label="Date Only" 
+                    label={t.dateOnly} 
                     desc={new Date().toLocaleDateString()} 
                   />
                   <FormatOption 
                     active={format === 'iso'} 
                     onClick={() => setFormat('iso')} 
-                    label="ISO 8601" 
+                    label={t.iso8601} 
                     desc={new Date().toISOString().split('.')[0] + 'Z'} 
                   />
                 </div>
@@ -314,13 +397,13 @@ export default function App() {
               <section className="space-y-4">
                 <div className="flex items-center gap-2 text-zinc-900">
                   <BarChart3 className="w-4 h-4 text-indigo-600" />
-                  <h2 className="text-xs font-bold uppercase tracking-widest">Statistics</h2>
+                  <h2 className="text-xs font-bold uppercase tracking-widest">{t.statistics}</h2>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                  <StatCard label="Chars" value={stats.characters} />
-                  <StatCard label="Words" value={stats.words} />
-                  <StatCard label="Lines" value={stats.lines} />
-                  <StatCard label="Timestamps" value={stats.timestamps} />
+                  <StatCard label={t.chars} value={stats.characters} />
+                  <StatCard label={t.words} value={stats.words} />
+                  <StatCard label={t.lines} value={stats.lines} />
+                  <StatCard label={t.timestamps} value={stats.timestamps} />
                 </div>
               </section>
 
@@ -328,12 +411,12 @@ export default function App() {
               <section className="space-y-4">
                 <div className="flex items-center gap-2 text-zinc-900">
                   <Info className="w-4 h-4 text-indigo-600" />
-                  <h2 className="text-xs font-bold uppercase tracking-widest">Quick Tips</h2>
+                  <h2 className="text-xs font-bold uppercase tracking-widest">{t.quickTips}</h2>
                 </div>
                 <div className="p-4 rounded-xl bg-zinc-50 border border-zinc-200 space-y-3">
-                  <Tip icon={<History className="w-3.5 h-3.5" />} text="自动保存到本地浏览器缓存" />
-                  <Tip icon={<Keyboard className="w-3.5 h-3.5" />} text="Shift + Enter 正常换行" />
-                  <Tip icon={<FileText className="w-3.5 h-3.5" />} text="支持导出为 .txt 文件" />
+                  <Tip icon={<History className="w-3.5 h-3.5" />} text={t.tip1} />
+                  <Tip icon={<Keyboard className="w-3.5 h-3.5" />} text={t.tip2} />
+                  <Tip icon={<FileText className="w-3.5 h-3.5" />} text={t.tip3} />
                 </div>
               </section>
 
