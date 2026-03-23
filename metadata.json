@@ -1,0 +1,5 @@
+{
+  "name": "Timestamp Editor Online",
+  "description": "A professional online text editor that automatically injects timestamps whenever you press Enter.",
+  "requestFramePermissions": []
+}
