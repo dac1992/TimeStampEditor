@@ -85,6 +85,10 @@ const translations = {
     providerSettings: "大模型选择",
     apiKeyPlaceholder: "输入您的 Gemini API Key...",
     deepseekApiKeyPlaceholder: "输入您的 DeepSeek API Key...",
+    bailianApiKeyPlaceholder: "输入您的阿里云百炼 API Key...",
+    getGeminiKey: "👉 点击获取 Gemini API Key",
+    getDeepseekKey: "👉 点击获取 DeepSeek API Key",
+    getBailianKey: "👉 点击获取阿里云百炼 API Key",
     aiSummary: "一键总结",
     aiChatPlaceholder: "输入提示词询问 AI...",
     aiLoading: "AI 正在思考...",
@@ -93,7 +97,11 @@ const translations = {
     aiSummaryPrompt: "请对以下带有时间戳的记录进行分类总结，提取关键信息并以清晰的格式呈现：",
     aiResponse: "AI 回复",
     aiTabSettings: "设置",
-    aiTabChat: "对话"
+    aiTabChat: "对话",
+    quickCommands: "快捷指令",
+    cmdCategorize: "帮我分类整理记事",
+    cmdTodo: "帮我整理待办事项",
+    cmdSummary: "帮我总结今天的内容"
   },
   en: {
     settings: "Settings",
@@ -129,6 +137,10 @@ const translations = {
     providerSettings: "AI Provider",
     apiKeyPlaceholder: "Enter your Gemini API Key...",
     deepseekApiKeyPlaceholder: "Enter your DeepSeek API Key...",
+    bailianApiKeyPlaceholder: "Enter your Aliyun Bailian API Key...",
+    getGeminiKey: "👉 Get Gemini API Key",
+    getDeepseekKey: "👉 Get DeepSeek API Key",
+    getBailianKey: "👉 Get Aliyun Bailian API Key",
     aiSummary: "One-Click Summary",
     aiChatPlaceholder: "Ask AI with custom prompt...",
     aiLoading: "AI is thinking...",
@@ -137,7 +149,11 @@ const translations = {
     aiSummaryPrompt: "Please categorize and summarize the following timestamped logs, extract key information, and present it in a clear format:",
     aiResponse: "AI Response",
     aiTabSettings: "Settings",
-    aiTabChat: "Chat"
+    aiTabChat: "Chat",
+    quickCommands: "Quick Commands",
+    cmdCategorize: "Categorize my notes",
+    cmdTodo: "Extract my to-dos",
+    cmdSummary: "Summarize today's logs"
   }
 };
 
@@ -164,11 +180,14 @@ export default function App() {
   const [apiKey, setApiKey] = useState(() => {
     return localStorage.getItem('timestamp_editor_api_key') || "";
   });
-  const [aiProvider, setAiProvider] = useState<'gemini' | 'deepseek'>(() => {
-    return (localStorage.getItem('timestamp_editor_ai_provider') as 'gemini' | 'deepseek') || 'gemini';
+  const [aiProvider, setAiProvider] = useState<'gemini' | 'deepseek' | 'bailian'>(() => {
+    return (localStorage.getItem('timestamp_editor_ai_provider') as 'gemini' | 'deepseek' | 'bailian') || 'gemini';
   });
   const [deepseekApiKey, setDeepseekApiKey] = useState(() => {
     return localStorage.getItem('timestamp_editor_deepseek_api_key') || "";
+  });
+  const [bailianApiKey, setBailianApiKey] = useState(() => {
+    return localStorage.getItem('timestamp_editor_bailian_api_key') || "";
   });
   const [aiInput, setAiInput] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
@@ -216,6 +235,10 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('timestamp_editor_deepseek_api_key', deepseekApiKey);
   }, [deepseekApiKey]);
+
+  useEffect(() => {
+    localStorage.setItem('timestamp_editor_bailian_api_key', bailianApiKey);
+  }, [bailianApiKey]);
 
   useEffect(() => {
     localStorage.setItem('timestamp_editor_messages', JSON.stringify(messages));
@@ -303,7 +326,7 @@ export default function App() {
   };
 
   const handleAiCall = async (prompt: string, isSummary: boolean = false) => {
-    const currentApiKey = aiProvider === 'gemini' ? apiKey : deepseekApiKey;
+    const currentApiKey = aiProvider === 'gemini' ? apiKey : (aiProvider === 'deepseek' ? deepseekApiKey : bailianApiKey);
     
     if (!currentApiKey) {
       alert(translations[lang].aiNoKey);
@@ -345,7 +368,7 @@ export default function App() {
           responseText = result.text || "No response";
         }
       } else {
-        // DeepSeek via fetch (OpenAI compatible API)
+        // DeepSeek or Bailian via fetch (OpenAI compatible API)
         const chatMessages = messages.map(m => ({
           role: m.role === 'user' ? 'user' : 'assistant',
           content: m.content
@@ -354,14 +377,20 @@ export default function App() {
         // Always include current prompt as the last message
         chatMessages.push({ role: 'user', content: prompt });
 
-        const response = await fetch("https://api.deepseek.com/chat/completions", {
+        const endpoint = aiProvider === 'deepseek' 
+          ? "https://api.deepseek.com/chat/completions" 
+          : "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions";
+        
+        const modelName = aiProvider === 'deepseek' ? "deepseek-chat" : "qwen-plus";
+
+        const response = await fetch(endpoint, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${currentApiKey}`
           },
           body: JSON.stringify({
-            model: "deepseek-chat",
+            model: modelName,
             messages: isSummary ? [{ role: 'user', content: prompt }] : chatMessages,
           }),
         });
@@ -407,6 +436,12 @@ export default function App() {
     handleAiCall(context);
   };
 
+  const handleQuickCommand = (commandText: string) => {
+    const input = commandText;
+    const context = messages.length === 0 ? `Context (My Logs):\n${text}\n\nQuestion: ${input}` : input;
+    handleAiCall(context);
+  };
+
   const handleClearChat = () => {
     setMessages([]);
     localStorage.removeItem('timestamp_editor_messages');
@@ -448,12 +483,6 @@ export default function App() {
             label={t.clear}
           />
         </div>
-
-        <div className="mt-auto">
-          <div className="w-8 h-8 rounded-full bg-zinc-100 flex items-center justify-center text-[10px] font-bold text-zinc-400">
-            v1.5
-          </div>
-        </div>
       </nav>
 
       {/* Main Content Area */}
@@ -472,6 +501,7 @@ export default function App() {
                   <Layout className="w-4 h-4 text-indigo-600" />
                 </div>
                 <h1 className="text-sm font-bold tracking-tight text-zinc-900">TimeStamp Editor</h1>
+                <span className="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-bold tracking-wider ml-1">v 1.0.9</span>
               </div>
               <div className="h-4 w-px bg-zinc-200" />
               <div className="flex items-center gap-2 text-xs text-zinc-400 font-medium">
@@ -605,15 +635,21 @@ export default function App() {
                         <div className="flex gap-2">
                           <button
                             onClick={() => setAiProvider('gemini')}
-                            className={`flex-1 py-2 text-sm font-bold rounded-xl transition-all ${aiProvider === 'gemini' ? 'bg-indigo-600 text-white shadow-md' : 'bg-white border border-zinc-200 text-zinc-500 hover:border-indigo-300'}`}
+                            className={`flex-1 py-1.5 text-xs font-bold rounded-xl transition-all ${aiProvider === 'gemini' ? 'bg-indigo-600 text-white shadow-md' : 'bg-white border border-zinc-200 text-zinc-500 hover:border-indigo-300'}`}
                           >
                             Gemini
                           </button>
                           <button
                             onClick={() => setAiProvider('deepseek')}
-                            className={`flex-1 py-2 text-sm font-bold rounded-xl transition-all ${aiProvider === 'deepseek' ? 'bg-indigo-600 text-white shadow-md' : 'bg-white border border-zinc-200 text-zinc-500 hover:border-indigo-300'}`}
+                            className={`flex-1 py-1.5 text-xs font-bold rounded-xl transition-all ${aiProvider === 'deepseek' ? 'bg-indigo-600 text-white shadow-md' : 'bg-white border border-zinc-200 text-zinc-500 hover:border-indigo-300'}`}
                           >
                             DeepSeek
+                          </button>
+                          <button
+                            onClick={() => setAiProvider('bailian')}
+                            className={`flex-1 py-1.5 text-xs font-bold rounded-xl transition-all ${aiProvider === 'bailian' ? 'bg-indigo-600 text-white shadow-md' : 'bg-white border border-zinc-200 text-zinc-500 hover:border-indigo-300'}`}
+                          >
+                            阿里云百炼
                           </button>
                         </div>
                       </div>
@@ -621,9 +657,9 @@ export default function App() {
                       <div className="p-5 rounded-2xl bg-zinc-50 border border-zinc-200 space-y-4">
                         <div className="flex items-center gap-2 text-[10px] font-bold text-zinc-400 uppercase tracking-widest">
                           <Key className="w-3.5 h-3.5 text-indigo-500" />
-                          <span>{aiProvider === 'gemini' ? 'Gemini API Key' : 'DeepSeek API Key'}</span>
+                          <span>{aiProvider === 'gemini' ? 'Gemini API Key' : (aiProvider === 'deepseek' ? 'DeepSeek API Key' : 'Bailian API Key')}</span>
                         </div>
-                        {aiProvider === 'gemini' ? (
+                        {aiProvider === 'gemini' && (
                           <input 
                             type="password"
                             value={apiKey}
@@ -631,7 +667,8 @@ export default function App() {
                             placeholder={t.apiKeyPlaceholder}
                             className="w-full px-4 py-3 bg-white border border-zinc-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
                           />
-                        ) : (
+                        )}
+                        {aiProvider === 'deepseek' && (
                           <input 
                             type="password"
                             value={deepseekApiKey}
@@ -640,9 +677,35 @@ export default function App() {
                             className="w-full px-4 py-3 bg-white border border-zinc-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
                           />
                         )}
-                        <p className="text-[10px] text-zinc-400 leading-relaxed">
-                          Your key is stored locally in your browser and never sent to our servers.
-                        </p>
+                        {aiProvider === 'bailian' && (
+                          <input 
+                            type="password"
+                            value={bailianApiKey}
+                            onChange={(e) => setBailianApiKey(e.target.value)}
+                            placeholder={t.bailianApiKeyPlaceholder}
+                            className="w-full px-4 py-3 bg-white border border-zinc-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
+                          />
+                        )}
+                        <div className="flex flex-col gap-2">
+                          <p className="text-[10px] text-zinc-400 leading-relaxed">
+                            Your key is stored locally in your browser and never sent to our servers.
+                          </p>
+                          {aiProvider === 'deepseek' && (
+                            <a href="https://platform.deepseek.com/api_keys" target="_blank" rel="noopener noreferrer" className="text-[11px] font-medium text-indigo-500 hover:text-indigo-600 hover:underline">
+                              {t.getDeepseekKey}
+                            </a>
+                          )}
+                          {aiProvider === 'bailian' && (
+                            <a href="https://bailian.console.aliyun.com/cn-beijing?tab=model#/api-key" target="_blank" rel="noopener noreferrer" className="text-[11px] font-medium text-indigo-500 hover:text-indigo-600 hover:underline">
+                              {t.getBailianKey}
+                            </a>
+                          )}
+                          {aiProvider === 'gemini' && (
+                            <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-[11px] font-medium text-indigo-500 hover:text-indigo-600 hover:underline">
+                              {t.getGeminiKey}
+                            </a>
+                          )}
+                        </div>
                       </div>
 
                       <div className="p-5 rounded-2xl bg-zinc-50 border border-zinc-200 space-y-4">
@@ -717,28 +780,55 @@ export default function App() {
 
                 {/* AI Chat Input - Fixed at bottom of sidebar */}
                 {aiTab === 'chat' && (
-                  <div className="p-6 border-t border-zinc-100 bg-white">
-                    <div className="relative group">
-                      <textarea 
-                        value={aiInput}
-                        onChange={(e) => setAiInput(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && !e.shiftKey) {
-                            e.preventDefault();
-                            handleAiChat();
-                          }
-                        }}
-                        placeholder={t.aiChatPlaceholder}
-                        rows={3}
-                        className="w-full p-4 bg-zinc-50 border border-zinc-200 rounded-2xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none resize-none pr-12 transition-all placeholder:text-zinc-400"
-                      />
+                  <div className="border-t border-zinc-100 bg-white">
+                    {/* Quick Commands */}
+                    <div className="px-6 pt-4 pb-2 flex items-center gap-2 overflow-x-auto custom-scrollbar no-scrollbar scroll-smooth">
                       <button 
-                        onClick={handleAiChat}
-                        disabled={isAiLoading || !aiInput.trim()}
-                        className="absolute right-3 bottom-3 p-2 bg-indigo-600 text-white rounded-xl disabled:bg-zinc-200 transition-all hover:scale-110 active:scale-95 shadow-lg shadow-indigo-100"
+                        onClick={() => handleQuickCommand(t.cmdCategorize)}
+                        disabled={isAiLoading}
+                        className="shrink-0 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-[11px] font-medium rounded-full transition-colors whitespace-nowrap disabled:opacity-50"
                       >
-                        <Send className="w-4 h-4" />
+                        {t.cmdCategorize}
                       </button>
+                      <button 
+                        onClick={() => handleQuickCommand(t.cmdTodo)}
+                        disabled={isAiLoading}
+                        className="shrink-0 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-[11px] font-medium rounded-full transition-colors whitespace-nowrap disabled:opacity-50"
+                      >
+                        {t.cmdTodo}
+                      </button>
+                      <button 
+                        onClick={() => handleQuickCommand(t.cmdSummary)}
+                        disabled={isAiLoading}
+                        className="shrink-0 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-[11px] font-medium rounded-full transition-colors whitespace-nowrap disabled:opacity-50"
+                      >
+                        {t.cmdSummary}
+                      </button>
+                    </div>
+
+                    <div className="p-6 pt-2">
+                      <div className="relative group">
+                        <textarea 
+                          value={aiInput}
+                          onChange={(e) => setAiInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                              e.preventDefault();
+                              handleAiChat();
+                            }
+                          }}
+                          placeholder={t.aiChatPlaceholder}
+                          rows={3}
+                          className="w-full p-4 bg-zinc-50 border border-zinc-200 rounded-2xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none resize-none pr-12 transition-all placeholder:text-zinc-400"
+                        />
+                        <button 
+                          onClick={handleAiChat}
+                          disabled={isAiLoading || !aiInput.trim()}
+                          className="absolute right-3 bottom-3 p-2 bg-indigo-600 text-white rounded-xl disabled:bg-zinc-200 transition-all hover:scale-110 active:scale-95 shadow-lg shadow-indigo-100"
+                        >
+                          <Send className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}
