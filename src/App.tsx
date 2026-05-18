@@ -82,7 +82,9 @@ const translations = {
     clearConfirm: "确定要清空所有内容吗？此操作不可撤销。",
     langName: "English",
     aiAssistant: "AI 助手",
+    providerSettings: "大模型选择",
     apiKeyPlaceholder: "输入您的 Gemini API Key...",
+    deepseekApiKeyPlaceholder: "输入您的 DeepSeek API Key...",
     aiSummary: "一键总结",
     aiChatPlaceholder: "输入提示词询问 AI...",
     aiLoading: "AI 正在思考...",
@@ -124,7 +126,9 @@ const translations = {
     clearConfirm: "Are you sure you want to clear all content? This cannot be undone.",
     langName: "中文",
     aiAssistant: "AI Assistant",
+    providerSettings: "AI Provider",
     apiKeyPlaceholder: "Enter your Gemini API Key...",
+    deepseekApiKeyPlaceholder: "Enter your DeepSeek API Key...",
     aiSummary: "One-Click Summary",
     aiChatPlaceholder: "Ask AI with custom prompt...",
     aiLoading: "AI is thinking...",
@@ -159,6 +163,12 @@ export default function App() {
   });
   const [apiKey, setApiKey] = useState(() => {
     return localStorage.getItem('timestamp_editor_api_key') || "";
+  });
+  const [aiProvider, setAiProvider] = useState<'gemini' | 'deepseek'>(() => {
+    return (localStorage.getItem('timestamp_editor_ai_provider') as 'gemini' | 'deepseek') || 'gemini';
+  });
+  const [deepseekApiKey, setDeepseekApiKey] = useState(() => {
+    return localStorage.getItem('timestamp_editor_deepseek_api_key') || "";
   });
   const [aiInput, setAiInput] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
@@ -198,6 +208,14 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('timestamp_editor_api_key', apiKey);
   }, [apiKey]);
+
+  useEffect(() => {
+    localStorage.setItem('timestamp_editor_ai_provider', aiProvider);
+  }, [aiProvider]);
+
+  useEffect(() => {
+    localStorage.setItem('timestamp_editor_deepseek_api_key', deepseekApiKey);
+  }, [deepseekApiKey]);
 
   useEffect(() => {
     localStorage.setItem('timestamp_editor_messages', JSON.stringify(messages));
@@ -285,7 +303,9 @@ export default function App() {
   };
 
   const handleAiCall = async (prompt: string, isSummary: boolean = false) => {
-    if (!apiKey) {
+    const currentApiKey = aiProvider === 'gemini' ? apiKey : deepseekApiKey;
+    
+    if (!currentApiKey) {
       alert(translations[lang].aiNoKey);
       setAiTab('settings');
       return;
@@ -298,30 +318,61 @@ export default function App() {
     setAiTab('chat');
     
     try {
-      const genAI = new GoogleGenAI({ apiKey });
-      
       let responseText = "";
-      
-      if (isSummary) {
-        // Summaries are one-off
-        const result = await genAI.models.generateContent({
-          model: "gemini-3-flash-preview",
-          contents: prompt,
-        });
-        responseText = result.text || "No response";
+
+      if (aiProvider === 'gemini') {
+        const genAI = new GoogleGenAI({ apiKey: currentApiKey });
+        
+        if (isSummary) {
+          // Summaries are one-off
+          const result = await genAI.models.generateContent({
+            model: "gemini-3-flash-preview",
+            contents: prompt,
+          });
+          responseText = result.text || "No response";
+        } else {
+          // Regular chat uses history
+          const result = await genAI.models.generateContent({
+            model: "gemini-3-flash-preview",
+            contents: [
+              ...messages.map(m => ({
+                role: m.role,
+                parts: [{ text: m.content }]
+              })),
+              { role: 'user', parts: [{ text: prompt }] }
+            ]
+          });
+          responseText = result.text || "No response";
+        }
       } else {
-        // Regular chat uses history
-        const result = await genAI.models.generateContent({
-          model: "gemini-3-flash-preview",
-          contents: [
-            ...messages.map(m => ({
-              role: m.role,
-              parts: [{ text: m.content }]
-            })),
-            { role: 'user', parts: [{ text: prompt }] }
-          ]
+        // DeepSeek via fetch (OpenAI compatible API)
+        const chatMessages = messages.map(m => ({
+          role: m.role === 'user' ? 'user' : 'assistant',
+          content: m.content
+        }));
+        
+        // Always include current prompt as the last message
+        chatMessages.push({ role: 'user', content: prompt });
+
+        const response = await fetch("https://api.deepseek.com/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${currentApiKey}`
+          },
+          body: JSON.stringify({
+            model: "deepseek-chat",
+            messages: isSummary ? [{ role: 'user', content: prompt }] : chatMessages,
+          }),
         });
-        responseText = result.text || "No response";
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error?.message || `HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        responseText = data.choices?.[0]?.message?.content || "No response";
       }
 
       const modelMessage: ChatMessage = { role: 'model', content: responseText };
@@ -548,16 +599,47 @@ export default function App() {
                     <div className="space-y-4">
                       <div className="p-5 rounded-2xl bg-zinc-50 border border-zinc-200 space-y-4">
                         <div className="flex items-center gap-2 text-[10px] font-bold text-zinc-400 uppercase tracking-widest">
-                          <Key className="w-3.5 h-3.5 text-indigo-500" />
-                          <span>Gemini API Key</span>
+                          <Settings className="w-3.5 h-3.5 text-indigo-500" />
+                          <span>{t.providerSettings}</span>
                         </div>
-                        <input 
-                          type="password"
-                          value={apiKey}
-                          onChange={(e) => setApiKey(e.target.value)}
-                          placeholder={t.apiKeyPlaceholder}
-                          className="w-full px-4 py-3 bg-white border border-zinc-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
-                        />
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setAiProvider('gemini')}
+                            className={`flex-1 py-2 text-sm font-bold rounded-xl transition-all ${aiProvider === 'gemini' ? 'bg-indigo-600 text-white shadow-md' : 'bg-white border border-zinc-200 text-zinc-500 hover:border-indigo-300'}`}
+                          >
+                            Gemini
+                          </button>
+                          <button
+                            onClick={() => setAiProvider('deepseek')}
+                            className={`flex-1 py-2 text-sm font-bold rounded-xl transition-all ${aiProvider === 'deepseek' ? 'bg-indigo-600 text-white shadow-md' : 'bg-white border border-zinc-200 text-zinc-500 hover:border-indigo-300'}`}
+                          >
+                            DeepSeek
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="p-5 rounded-2xl bg-zinc-50 border border-zinc-200 space-y-4">
+                        <div className="flex items-center gap-2 text-[10px] font-bold text-zinc-400 uppercase tracking-widest">
+                          <Key className="w-3.5 h-3.5 text-indigo-500" />
+                          <span>{aiProvider === 'gemini' ? 'Gemini API Key' : 'DeepSeek API Key'}</span>
+                        </div>
+                        {aiProvider === 'gemini' ? (
+                          <input 
+                            type="password"
+                            value={apiKey}
+                            onChange={(e) => setApiKey(e.target.value)}
+                            placeholder={t.apiKeyPlaceholder}
+                            className="w-full px-4 py-3 bg-white border border-zinc-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
+                          />
+                        ) : (
+                          <input 
+                            type="password"
+                            value={deepseekApiKey}
+                            onChange={(e) => setDeepseekApiKey(e.target.value)}
+                            placeholder={t.deepseekApiKeyPlaceholder}
+                            className="w-full px-4 py-3 bg-white border border-zinc-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
+                          />
+                        )}
                         <p className="text-[10px] text-zinc-400 leading-relaxed">
                           Your key is stored locally in your browser and never sent to our servers.
                         </p>
